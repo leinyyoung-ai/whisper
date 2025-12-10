@@ -64,6 +64,24 @@ app.get('/api/get-asr-url', (req, res) => {
     }
 });
 
+// -------------------------------------------------------------
+// API 路由: 用于前端获取 TTS (语音合成) 服务的鉴权 URL
+// -------------------------------------------------------------
+app.get('/api/get-tts-url', (req, res) => {
+    try {
+        const host = 'tts-api.xfyun.cn'; // 语音合成服务的 Host
+        const path = '/v2/tts';         // 语音合成服务的 Path
+
+        const url = getXunfeiAuthUrl(host, path, XF_API_KEY, XF_API_SECRET);
+
+        // 成功返回鉴权 URL
+        res.json({ url });
+    } catch (error) {
+        console.error("鉴权 URL 生成失败:", error);
+        res.status(500).json({ error: 'Failed to generate auth URL' });
+    }
+});
+
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });

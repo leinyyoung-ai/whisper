@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Xunfei ASR</title>
+    <title>Xunfei ASR & TTS</title>
 </head>
 <body>
     <h1>Xunfei ASR Test</h1>
@@ -10,10 +10,25 @@
     <p>Status: <span id="status">Idle</span></p>
     <p>Result: <span id="result"></span></p>
 
+    <hr>
+
+    <h1>Xunfei TTS Test</h1>
+    <textarea id="ttsText" rows="4" cols="50">你好，欢迎使用讯飞语音合成服务。</textarea>
+    <br>
+    <button id="ttsButton">Synthesize Speech</button>
+    <br>
+    <audio id="audioPlayer" controls></audio>
+
     <script>
+        // ASR Elements
         const recordButton = document.getElementById('recordButton');
         const statusSpan = document.getElementById('status');
         const resultSpan = document.getElementById('result');
+
+        // TTS Elements
+        const ttsText = document.getElementById('ttsText');
+        const ttsButton = document.getElementById('ttsButton');
+        const audioPlayer = document.getElementById('audioPlayer');
 
         let mediaRecorder;
         let socket;
@@ -25,6 +40,10 @@
             } else {
                 startRecording();
             }
+        };
+
+        ttsButton.onclick = () => {
+            synthesizeSpeech();
         };
 
         function startRecording() {
@@ -84,6 +103,49 @@
             isRecording = false;
             recordButton.textContent = 'Start Recording';
             statusSpan.textContent = 'Idle';
+        }
+
+        function synthesizeSpeech() {
+            fetch('/api/get-tts-url')
+                .then(response => response.json())
+                .then(data => {
+                    const ttsSocket = new WebSocket(data.url);
+                    let audioData = [];
+
+                    ttsSocket.onopen = () => {
+                        const text = ttsText.value;
+                        const frame = {
+                            common: { app_id: '8cf6c216' },
+                            business: { aue: 'lame', sfl: 1, vcn: 'xiaoyan' },
+                            data: { status: 2, text: btoa(text) }
+                        };
+                        ttsSocket.send(JSON.stringify(frame));
+                    };
+
+                    ttsSocket.onmessage = event => {
+                        const res = JSON.parse(event.data);
+                        if (res.data && res.data.audio) {
+                            const audioChunk = atob(res.data.audio);
+                            const chunkArray = new Uint8Array(audioChunk.length);
+                            for (let i = 0; i < audioChunk.length; i++) {
+                                chunkArray[i] = audioChunk.charCodeAt(i);
+                            }
+                            audioData.push(chunkArray);
+                        }
+
+                        if (res.data && res.data.status === 2) {
+                            const blob = new Blob(audioData, { type: 'audio/mpeg' });
+                            const url = URL.createObjectURL(blob);
+                            audioPlayer.src = url;
+                            audioPlayer.play();
+                            ttsSocket.close();
+                        }
+                    };
+
+                    ttsSocket.onerror = (error) => {
+                        console.error('TTS WebSocket Error:', error);
+                    };
+                });
         }
     </script>
 </body>
