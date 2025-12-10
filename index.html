@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Xunfei ASR</title>
+</head>
+<body>
+    <h1>Xunfei ASR Test</h1>
+    <button id="recordButton">Start Recording</button>
+    <p>Status: <span id="status">Idle</span></p>
+    <p>Result: <span id="result"></span></p>
+
+    <script>
+        const recordButton = document.getElementById('recordButton');
+        const statusSpan = document.getElementById('status');
+        const resultSpan = document.getElementById('result');
+
+        let mediaRecorder;
+        let socket;
+        let isRecording = false;
+
+        recordButton.onclick = () => {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        };
+
+        function startRecording() {
+            fetch('/api/get-asr-url')
+                .then(response => response.json())
+                .then(data => {
+                    const wsUrl = data.url;
+                    socket = new WebSocket(wsUrl);
+
+                    socket.onopen = () => {
+                        statusSpan.textContent = 'Connecting...';
+                        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                            mediaRecorder = new MediaRecorder(stream);
+                            mediaRecorder.ondataavailable = event => {
+                                if (event.data.size > 0) {
+                                    socket.send(event.data);
+                                }
+                            };
+                            mediaRecorder.start(1000); // Send data every 1 second
+                            isRecording = true;
+                            recordButton.textContent = 'Stop Recording';
+                            statusSpan.textContent = 'Recording...';
+                        });
+                    };
+
+                    socket.onmessage = event => {
+                        const data = JSON.parse(event.data);
+                        if (data.data && data.data.result) {
+                            let text = '';
+                            data.data.result.ws.forEach(ws => {
+                                ws.cw.forEach(cw => {
+                                    text += cw.w;
+                                });
+                            });
+                            resultSpan.textContent = text;
+                        }
+                    };
+
+                    socket.onclose = () => {
+                        statusSpan.textContent = 'Connection closed.';
+                    };
+
+                    socket.onerror = (error) => {
+                        statusSpan.textContent = 'Error: ' + error;
+                    };
+                });
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ data: { status: 2, format: 'audio/l16;rate=16000' } }));
+                socket.close();
+            }
+            isRecording = false;
+            recordButton.textContent = 'Start Recording';
+            statusSpan.textContent = 'Idle';
+        }
+    </script>
+</body>
+</html>
