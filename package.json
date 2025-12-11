@@ -1,0 +1,13 @@
+{
+  "name": "six-month-flow-monorepo",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:backend": "node backend/index.js",
+    "dev": "npm run dev:frontend & npm run dev:backend"
+  }
+}
